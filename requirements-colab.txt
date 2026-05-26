@@ -1,0 +1,15 @@
+# ============================================================
+# FIT5217 A2 — Colab 精简依赖
+# Colab 已预装: torch, transformers, datasets, pandas, numpy,
+#               matplotlib, seaborn, tqdm, nltk, openpyxl
+# 用法:
+#   !pip install -q -r requirements-colab.txt
+# ============================================================
+
+peft>=0.10.0
+bert-score>=0.3.13
+sacrebleu>=2.4.0
+rank_bm25>=0.2.2
+sentence-transformers>=2.6.0
+faiss-cpu>=1.7.4
+python-dotenv>=1.0.0
