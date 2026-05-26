@@ -1,0 +1,23 @@
+model_name: google-t5/t5-small
+train_path: data/raw/train.csv
+dev_path: data/raw/dev.csv
+output_dir: checkpoints/t2_t5_config2
+
+num_train_epochs: 3
+batch_size: 32
+eval_batch_size: 64
+learning_rate: 0.0002
+weight_decay: 0.0
+grad_clip: 1.0
+max_source_length: 128
+max_target_length: 128
+num_workers: 0
+use_amp: true
+
+lora:
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules:
+    - q
+    - v

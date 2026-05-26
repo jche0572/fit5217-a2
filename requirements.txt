@@ -10,6 +10,7 @@ transformers>=4.40.0
 peft>=0.10.0
 accelerate>=0.28.0
 datasets>=2.18.0
+sentencepiece>=0.2.0
 
 # ---- 评估指标 ----
 nltk>=3.8.1
