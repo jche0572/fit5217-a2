@@ -30,7 +30,8 @@
 
 **Discussion** (≈150 words):
 
-The baseline and attention models used the same core hyperparameters for a fair comparison: 128-dimensional embeddings, 256 hidden units, one GRU layer, learning rate 0.001, batch size 128, full teacher forcing during training, and dev-loss checkpointing with patience 3. These settings kept the model small enough for Colab T4/L4 training while preserving enough capacity for the recipe vocabulary. The vocabulary threshold was selected using the min-frequency comparison in Notebook Cell 5 and Cell 6. Moving from min_freq=3 to 5 reduced the vocabulary by 1,713 tokens while increasing dev OOV occurrences by only 34, a reasonable trade-off. Moving from 5 to 10 removed another 1,558 tokens but added 57 dev OOV occurrences, giving weaker marginal benefit. The final vocabulary size of 6,733 is also a reasonable classic NMT-style vocabulary scale for a word-level RNN baseline. See Notebook Cell 19 for the final hyperparameter table.
+I kept the baseline and attention models on the same core settings so the comparison would be fair: 128-dim embeddings, 256 hidden units, one GRU layer, Adam at lr=0.001, batch size 128, full teacher forcing, and dev-loss checkpointing with patience 3. These choices fit the Colab T4/L4 budget while leaving enough capacity for the recipe vocabulary.
+For the vocabulary threshold, I ran a small ablation across {3, 5, 10} (Notebook Cell 6). Going from min_freq=3 to 5 dropped 1,713 tokens but only added 34 dev OOV occurrences — a clear win. Going further from 5 to 10 dropped another 1,558 tokens but cost 57 OOV occurrences, so the marginal benefit fell off. I settled on min_freq=5, which gave a vocabulary of 6,733 — a typical scale for a word-level NMT baseline (Notebook Cell 19).
 
 ---
 
@@ -50,14 +51,18 @@ The baseline and attention models used the same core hyperparameters for a fair 
 
 **Example 1**
 
-- **Input (ingredients):** ["1 (8 oz.) pkg. cream cheese", "1 small jar Marshmallow Creme", "1 Tbsp. orange juice"]
-- **Gold recipe:** whip cream cheese with mixer until smooth . blend in orange juice . add marshmallow creme . whip again until smooth . chill before serving .
-- **Baseline output:** mix together and serve with fresh fruit .
-- **Attention output:** mix all ingredients together . serve with fresh fruit .
+- **Input (ingredients):** `["1 lb. ground beef", "1/2 c. onions, cut up (sauteed in butter or oil)", "1 tsp. mustard", "1 can chicken gumbo soup", "2 Tbsp. catsup"]`
+- **Gold recipe:** combine all ingredients . cook 30 minutes . serve on warm buns .
+- **Baseline output:** brown beef and onions . drain . add remaining ingredients . simmer for 20 minutes .
+- **Attention output:** brown meat and onions . add mustard and catsup . simmer for 10 minutes . add remaining ingredients . simmer for 30 minutes .
 
 **Discussion** (≈150 words):
 
-The attention model outperformed the baseline across all three test metrics. BLEU-4 increased from 0.0741 to 0.0905, a relative gain of about 22%. METEOR improved from 0.2415 to 0.2538, and BERTScore increased slightly from 0.8745 to 0.8772. These results, summarized in Notebook Cell 20, show that Bahdanau attention improved both surface n-gram overlap and semantic similarity, although the largest gain was in BLEU. Qualitatively, Notebook Cell 16 provides evidence that the attention mechanism learned token-level alignment in the second heatmap: source tokens such as “mustard”, “catsup”, and “onions” receive attention when related output tokens are generated. However, the sample comparison in Notebook Cell 21 also shows that both RNN systems often produce short, generic instructions such as mixing, baking, or serving. This suggests that attention helps ingredient grounding but does not fully solve generic recipe generation or long-tail ingredient omission.
+Quantitatively, attention improved every metric: BLEU-4 jumped from 0.0741 to 0.0905 (+22%), METEOR from 0.2415 to 0.2538, and BERTScore from 0.8745 to 0.8772 (Notebook Cell 20). The BLEU gain is by far the largest, which suggests attention helps most at surface n-gram alignment rather than just semantic similarity.
+
+The qualitative side backs this up. In the sloppy-joe sample (Example 1 above), the baseline generates a plausible but generic "brown beef and onions, drain, add remaining," while the attention model produces "brown meat and onions, add mustard and catsup," picking up ingredient-specific tokens that the baseline drops. The attention heatmap for this sample (Notebook Cell 16) shows direct mustard→mustard and catsup→catsup alignment, which is exactly the behaviour Bahdanau attention is supposed to produce.
+
+Both models still fall back on safe verbs like "mix" or "serve" for low-information ingredient lists, so attention helps grounding but does not solve generic generation.
 
 ---
 
@@ -85,7 +90,9 @@ The attention model outperformed the baseline across all three test metrics. BLE
 
 **Discussion** (≈150 words):
 
-The loss curves indicate stable training for both RNN models. The baseline trained for 10 epochs, ending with train loss 2.2342 and dev loss 2.2945. The attention model trained for 8 epochs, ending with train loss 2.2142 and dev loss 2.2514. Neither model triggered early stopping because development loss continued to decrease through the final saved epoch. The training losses remained lower than the corresponding dev losses, but the dev curves did not turn upward, so there is no clear evidence of overfitting in the recorded runs. Notebook Cell 9 shows the baseline loss curve, and Notebook Cell 14 shows the attention loss curve. Attention began with a higher first-epoch dev loss than the baseline, which is expected because it has additional parameters and must learn alignments. By the final epoch, however, its dev loss was lower than the baseline, matching its stronger test metrics.
+Both runs looked steady. The baseline trained for 10 epochs (final train loss 2.2342, dev loss 2.2945), and the attention model trained for 8 epochs (final train loss 2.2142, dev loss 2.2514). Neither hit early stopping because dev loss was still falling at the last recorded epoch in both cases — see Notebook Cell 9 and Cell 14 for the curves.
+
+Train loss sat below dev loss throughout, but the gap never widened and the dev curves never turned upward, so I do not see overfitting in these runs. One detail worth noting: the attention model started with a higher first-epoch dev loss than the baseline. That makes sense, since it has extra parameters and has to learn alignments from scratch. By the final epoch, attention overtook the baseline on dev loss, which lines up with its better BLEU, METEOR, and BERTScore on test.
 
 ---
 
