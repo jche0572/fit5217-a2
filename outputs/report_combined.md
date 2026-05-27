@@ -118,7 +118,9 @@ Address the following points:
 - **Architectural differences:** How does the encoder–decoder design of T5 differ from the decoder-only design of GPT-2? How do these differences explain any performance gap?
 - **Effect of model size** *(if T5-base was run):* How did increasing model size affect performance and compute cost?
 
-The cross-model results in Notebook Cell 15 show that the T1.3 attention RNN achieved the highest BLEU-4 score, 0.0905, ahead of the T1.2 baseline RNN at 0.0741, T5 LoRA config2 at 0.0664, and GPT-2 LoRA with beam decoding at 0.0534. This is somewhat counter-intuitive because T5 and GPT-2 are pretrained models. However, the T2 models were trained with LoRA adapters only, meaning just 0.236% to 0.965% of parameters were trainable, and all runs used only three epochs. Their development losses were still decreasing, so the fine-tuning budget was limited rather than fully converged. BLEU may also favor outputs closer to the training-set recipe style, which the from-scratch RNN learned directly from this dataset. The recipe domain is also narrow and repetitive, so pretraining may provide less advantage than in open-ended generation. GPT-2 performed best on METEOR, with 0.2574, suggesting stronger semantic coverage despite lower BLEU. T5 performed better than GPT-2 on BLEU, which may reflect encoder-decoder conditioning and clearer ingredient-to-target alignment. Overall, the results satisfy the assignment goal of building working fine-tuned models and understanding their behavior rather than maximizing leaderboard performance.
+The headline result is counterintuitive: the from-scratch T1.3 attention RNN tops the BLEU-4 board at 0.0905, ahead of T1.2 baseline (0.0741), the best T5 LoRA configuration (config2, 0.0664), and GPT-2 LoRA with beam decoding (0.0534) — see Notebook Cell 15. I think three factors explain why the pretrained models underperform here. First, LoRA adapters only update 0.236% to 0.965% of parameters, so the models cannot drift far from their pretraining distribution. Second, all T2 runs stopped at three epochs because of the compute budget, and the dev losses were still falling, so these are under-trained rather than converged models. Third, BLEU-4 rewards surface n-gram overlap with the gold recipe corpus, which the from-scratch RNNs learn directly; pretrained models trained on broader text trade some of that surface fidelity for general fluency.
+
+The story flips on other metrics. GPT-2 takes the top METEOR (0.2574), which suggests its broader vocabulary gives better semantic coverage even when n-gram match is weaker. T5 sits between GPT-2 and the RNNs on BLEU, plausibly because its encoder-decoder design gives stronger ingredient-to-target alignment than GPT-2's single-stream conditioning. This pattern is consistent with the assignment goal of understanding model behaviour rather than chasing the highest score.
 
 ---
 
@@ -142,13 +144,16 @@ The cross-model results in Notebook Cell 15 show that the T1.3 attention RNN ach
 
 **Discussion** (≈150 words):
 
-Notebook Cell 5 compares the LoRA configurations. For T5, config1 used r=8, alpha=16, dropout=0.05, and target modules [q,v], with 0.485% trainable parameters. Config2 doubled the rank to r=16 and alpha=32 while keeping [q,v], increasing the trainable fraction to 0.965% and producing the best BLEU-4, 0.0664. Config3 had the same 0.965% trainable fraction as config2 but spread r=8 adapters across [q,k,v,o] with higher dropout, achieving lower BLEU-4, 0.0608. This indicates that increasing rank on q and v was more effective than expanding target modules in this run. The rank controls adapter capacity, alpha scales the adapter update, and dropout regularizes fine-tuning. Attention modules were targeted because recipe generation depends on aligning ingredients with generated steps. GPT-2 used c_attn with 0.236% trainable parameters, showing that the same r=8 represents a smaller trainable fraction in a larger model.
+The clearest finding from the T5 ablation (Notebook Cell 5) is that capacity matters more than coverage. Config1 (r=8, alpha=16, [q,v], 0.485% trainable) got 0.0556 BLEU-4. Doubling the rank in config2 (r=16, alpha=32, same [q,v], 0.965% trainable) lifted BLEU-4 to 0.0664. Config3 spent the same 0.965% trainable budget differently — keeping r=8 but spreading adapters across [q,k,v,o] with higher dropout — and landed at 0.0608, lower than config2.
+
+I read this as evidence that LoRA adaptation is bottlenecked by the rank of each adapter rather than how many attention sub-modules carry one. Higher rank gives each adapter a richer update direction; spreading the same budget thin across more modules dilutes that signal. I chose attention modules over feed-forward because recipe generation is an alignment-heavy task (ingredients → steps), and attention is where that alignment happens (Hu et al., 2022). For GPT-2, the same r=8 yields only 0.236% trainable params because the base model is twice the size of T5-small.
 
 ---
 
 ### (c) Training Dynamics
 
 > Ground your discussion in the loss plots from your notebook.
+> Reported here for the best T5 configuration (config2, r=16). For full per-configuration histories see Notebook Cells 6 and 11.
 
 | Model | Epochs | Early stop at | Final train loss | Final dev loss |
 |---|---|---|---|---|
@@ -157,7 +162,9 @@ Notebook Cell 5 compares the LoRA configurations. For T5, config1 used r=8, alph
 
 **Discussion** (≈100 words):
 
-Notebook Cell 6 and Cell 11 show that all T2 models were still improving after three epochs. T5 config1 dev loss decreased from 2.52 to 2.43 to 2.37, config2 followed the same downward pattern, and GPT-2 dev loss decreased from 1.89 to 1.84 to 1.81. No early stopping was triggered; three epochs were a hard time-budget setting rather than an optimal stopping point. A key caveat is that T5 and GPT-2 losses are not directly comparable: T5 loss is computed over seq2seq decoder targets, while GPT-2 loss is computed over recipe continuation tokens in a single sequence. Lower GPT-2 dev loss therefore does not imply better BLEU.
+All three T2 models were still improving at the end of training (Notebook Cell 6 and Cell 11). The table above reports the best T5 configuration (config2, r=16); its dev loss fell 2.45 → 2.35 → 2.29 across the three epochs, and GPT-2's went 1.89 → 1.84 → 1.81. None of them triggered early stopping — I capped training at three epochs to fit the compute budget, not because the models had converged.
+
+One important caveat: T5 and GPT-2 losses are not on the same scale. T5 loss is computed over seq2seq decoder targets, while GPT-2 loss is computed over recipe-continuation tokens in a single sequence. GPT-2's lower dev loss does not imply better BLEU.
 
 ---
 
