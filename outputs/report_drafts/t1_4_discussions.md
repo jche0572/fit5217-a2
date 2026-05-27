@@ -1,0 +1,31 @@
+# T1.4 Discussion Drafts
+
+## (1) Hyperparameters
+
+### Version A (Conservative)
+
+The baseline and attention models used the same core hyperparameters for a fair comparison: 128-dimensional embeddings, 256 hidden units, one GRU layer, learning rate 0.001, batch size 128, full teacher forcing during training, and dev-loss checkpointing with patience 3. These settings kept the model small enough for Colab T4/L4 training while preserving enough capacity for the recipe vocabulary. The vocabulary threshold was selected using the min-frequency comparison in Notebook Cell 5 and Cell 6. Moving from min_freq=3 to 5 reduced the vocabulary by 1,713 tokens while increasing dev OOV occurrences by only 34, a reasonable trade-off. Moving from 5 to 10 removed another 1,558 tokens but added 57 dev OOV occurrences, giving weaker marginal benefit. The final vocabulary size of 6,733 is also a reasonable classic NMT-style vocabulary scale for a word-level RNN baseline. See Notebook Cell 19 for the final hyperparameter table.
+
+### Version B (Analytical)
+
+The hyperparameters were chosen to balance capacity, speed, and overfitting risk in a from-scratch sequence-to-sequence setting. A 128-dimensional embedding and 256-dimensional GRU hidden state give the model enough representational space without making each epoch too expensive. A single layer keeps the baseline interpretable and avoids adding depth before evaluating the effect of attention. Full teacher forcing stabilizes optimization by exposing the decoder to gold previous tokens during training, while gradient clipping and dev-loss checkpointing reduce instability. The strongest empirical support is the min-frequency ablation in Notebook Cell 6. Increasing min_freq from 3 to 5 saved 1,713 vocabulary entries for only 34 additional dev OOV occurrences, but increasing from 5 to 10 removed 1,558 more entries at the cost of 57 additional dev OOV occurrences. This suggests min_freq=5 is near the elbow of the compression-OOV trade-off. The resulting 6,733-token vocabulary is compact but still within a sensible word-level NMT range.
+
+## (2) Baseline vs Attention
+
+### Version A (Conservative)
+
+The attention model outperformed the baseline across all three test metrics. BLEU-4 increased from 0.0741 to 0.0905, a relative gain of about 22%. METEOR improved from 0.2415 to 0.2538, and BERTScore increased slightly from 0.8745 to 0.8772. These results, summarized in Notebook Cell 20, show that Bahdanau attention improved both surface n-gram overlap and semantic similarity, although the largest gain was in BLEU. Qualitatively, Notebook Cell 16 provides evidence that the attention mechanism learned token-level alignment in the second heatmap: source tokens such as “mustard”, “catsup”, and “onions” receive attention when related output tokens are generated. However, the sample comparison in Notebook Cell 21 also shows that both RNN systems often produce short, generic instructions such as mixing, baking, or serving. This suggests that attention helps ingredient grounding but does not fully solve generic recipe generation or long-tail ingredient omission.
+
+### Version B (Analytical)
+
+The metric pattern suggests that attention mainly improves lexical grounding rather than completely changing generation style. BLEU-4 rose by about 22%, from 0.0741 to 0.0905, while METEOR gained roughly 5% and BERTScore only 0.3%. This is consistent with Bahdanau attention: by computing a dynamic context vector at each decoding step, the model can copy or condition on relevant ingredient tokens more precisely, which improves local n-gram overlap. The qualitative evidence in Notebook Cell 16 supports this interpretation. In the sloppy joe heatmap, “mustard”, “catsup”, and “onions” align directly to corresponding generated content, showing word-level source-target attention. Nevertheless, Notebook Cell 21 shows that both models remain conservative decoders. They prefer high-frequency cooking templates and sometimes ignore rare or specific ingredients. Thus, attention reduces the encoder bottleneck and improves alignment, but the word-level RNN decoder still has limited diversity and weak long-tail memorization compared with larger pretrained models.
+
+## (3) Training Dynamics
+
+### Version A (Conservative)
+
+The loss curves indicate stable training for both RNN models. The baseline trained for 10 epochs, ending with train loss 2.2342 and dev loss 2.2945. The attention model trained for 8 epochs, ending with train loss 2.2142 and dev loss 2.2514. Neither model triggered early stopping because development loss continued to decrease through the final saved epoch. The training losses remained lower than the corresponding dev losses, but the dev curves did not turn upward, so there is no clear evidence of overfitting in the recorded runs. Notebook Cell 9 shows the baseline loss curve, and Notebook Cell 14 shows the attention loss curve. Attention began with a higher first-epoch dev loss than the baseline, which is expected because it has additional parameters and must learn alignments. By the final epoch, however, its dev loss was lower than the baseline, matching its stronger test metrics.
+
+### Version B (Analytical)
+
+The training dynamics support the interpretation that attention is initially harder to optimize but ultimately more effective. In early training, the attention model has more moving parts: it must learn encoder representations, decoder transitions, and the additive alignment function simultaneously. This likely explains why its first-epoch dev loss was higher than the baseline curve shown in Notebook Cell 9 and Cell 14. As training progresses, the alignment mechanism becomes useful rather than burdensome, allowing the decoder to condition on source-specific context instead of relying only on a single final encoder state. By the end, attention reached lower dev loss than the baseline: 2.2514 versus 2.2945. This direction agrees with the test metrics in Notebook Cell 20, where attention also leads on BLEU, METEOR, and BERTScore. The train-dev gaps are modest and dev loss keeps falling, so the runs look under-trained rather than overfit. Additional epochs might have improved both models, especially attention.

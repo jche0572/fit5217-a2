@@ -23,7 +23,19 @@ env/
 # 模型/训练产物 (体积大,不入仓)
 # ============================================================
 checkpoints/
-outputs/
+# 默认 ignore outputs/ 下所有内容
+outputs/*
+# 但允许这些 report 相关文件
+!outputs/.gitkeep
+!outputs/report_combined.md
+!outputs/report_data_filled.md
+!outputs/report_drafts/
+!outputs/report_drafts/**
+!outputs/min_freq_comparison.json
+!outputs/t1_1_notebook_content.md
+!outputs/judge_results.md
+!outputs/metrics/
+!outputs/metrics/**
 *.pt
 *.pth
 *.bin

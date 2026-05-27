@@ -1,0 +1,31 @@
+# T2.3 Discussion Drafts
+
+## (a) Cross-Model Comparison
+
+### Version A (Conservative)
+
+The cross-model results in Notebook Cell 15 show that the T1.3 attention RNN achieved the highest BLEU-4 score, 0.0905, ahead of the T1.2 baseline RNN at 0.0741, T5 LoRA config2 at 0.0664, and GPT-2 LoRA with beam decoding at 0.0534. This is somewhat counter-intuitive because T5 and GPT-2 are pretrained models. However, the T2 models were trained with LoRA adapters only, meaning just 0.236% to 0.965% of parameters were trainable, and all runs used only three epochs. Their development losses were still decreasing, so the fine-tuning budget was limited rather than fully converged. BLEU may also favor outputs closer to the training-set recipe style, which the from-scratch RNN learned directly from this dataset. The recipe domain is also narrow and repetitive, so pretraining may provide less advantage than in open-ended generation. GPT-2 performed best on METEOR, with 0.2574, suggesting stronger semantic coverage despite lower BLEU. T5 performed better than GPT-2 on BLEU, which may reflect encoder-decoder conditioning and clearer ingredient-to-target alignment. Overall, the results satisfy the assignment goal of building working fine-tuned models and understanding their behavior rather than maximizing leaderboard performance.
+
+### Version B (Analytical)
+
+The ranking in Notebook Cell 15 illustrates that pretraining does not automatically dominate under constrained adaptation. The attention RNN ranked first by BLEU-4, even though T5 and GPT-2 have richer language priors. Three factors likely explain this. First, LoRA updated only 0.236% to 0.965% of parameters, so the pretrained models had limited task-specific capacity. Second, three epochs were a hard time-budget choice, and Notebook Cell 6 and Cell 11 show losses still declining. Third, BLEU, originally proposed by Papineni et al. (2002), rewards exact n-gram overlap, which may favor the dataset-specific templates learned by the RNN over paraphrastic pretrained outputs. Recipe generation is also a narrow domain where many instructions are formulaic, reducing the advantage of broad pretraining and making surface style especially important. Architecturally, T5's encoder-decoder structure provides explicit cross-attention from ingredients to recipe tokens, which likely helps its higher BLEU relative to GPT-2. GPT-2, however, achieved the best METEOR score, 0.2574, suggesting broader semantic coverage through free-form decoder-only continuation and a larger learned language prior. Thus, the experiment is less about absolute superiority and more about understanding model behavior under practical fine-tuning constraints, matching the assignment hint that the goal is working models and behavioral analysis.
+
+## (b) LoRA Configuration Analysis
+
+### Version A (Conservative)
+
+Notebook Cell 5 compares the LoRA configurations. For T5, config1 used r=8, alpha=16, dropout=0.05, and target modules [q,v], with 0.485% trainable parameters. Config2 doubled the rank to r=16 and alpha=32 while keeping [q,v], increasing the trainable fraction to 0.965% and producing the best BLEU-4, 0.0664. Config3 had the same 0.965% trainable fraction as config2 but spread r=8 adapters across [q,k,v,o] with higher dropout, achieving lower BLEU-4, 0.0608. This indicates that increasing rank on q and v was more effective than expanding target modules in this run. The rank controls adapter capacity, alpha scales the adapter update, and dropout regularizes fine-tuning. Attention modules were targeted because recipe generation depends on aligning ingredients with generated steps. GPT-2 used c_attn with 0.236% trainable parameters, showing that the same r=8 represents a smaller trainable fraction in a larger model.
+
+### Version B (Analytical)
+
+The LoRA results support the low-rank adaptation view of Hu et al. (2022): performance depends not only on parameter count, but also on where the low-rank update is placed. T5 config2 and config3 had the same trainable fraction, 0.965%, but config2 achieved higher BLEU by increasing r from 8 to 16 on q and v, while config3 spread r=8 across q,k,v,o. This suggests that, for this recipe task, deeper capacity in the most relevant projections was more useful than broader coverage. The rank r controls the dimensionality of the update subspace, alpha scales that update, and dropout controls regularization. Because ingredient-conditioned generation is an alignment-heavy problem, attention projections are a natural target: q and v directly affect what the decoder attends to and how source information enters generation. FFN layers may influence representation style, but they are less directly tied to source-target alignment. GPT-2's 0.236% trainable fraction also shows that identical LoRA ranks have different adaptation strength across base-model sizes.
+
+## (c) Training Dynamics
+
+### Version A (Conservative)
+
+Notebook Cell 6 and Cell 11 show that all T2 models were still improving after three epochs. T5 config1 dev loss decreased from 2.52 to 2.43 to 2.37, config2 followed the same downward pattern, and GPT-2 dev loss decreased from 1.89 to 1.84 to 1.81. No early stopping was triggered; three epochs were a hard time-budget setting rather than an optimal stopping point. A key caveat is that T5 and GPT-2 losses are not directly comparable: T5 loss is computed over seq2seq decoder targets, while GPT-2 loss is computed over recipe continuation tokens in a single sequence. Lower GPT-2 dev loss therefore does not imply better BLEU.
+
+### Version B (Analytical)
+
+The T2 loss curves suggest under-training rather than overfitting. In Notebook Cell 6, all T5 configurations show steadily decreasing dev loss, and Notebook Cell 11 shows the same pattern for GPT-2. This means the three-epoch schedule was primarily a Colab budget constraint. Within each model family, dev loss is broadly consistent with test behavior: T5 config2 improves strongly and becomes the best BLEU T5 model, while beam decoding improves GPT-2 evaluation. However, T5 and GPT-2 losses must not be compared directly. T5 optimizes encoder-decoder target loss, whereas GPT-2 optimizes next-token loss only on the recipe continuation. Thus, GPT-2's lower dev loss does not contradict its lower BLEU score.
